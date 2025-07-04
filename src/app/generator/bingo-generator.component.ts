@@ -16,6 +16,9 @@ interface BingoCard {
   freeSpaceImage: BingoImage | null;
 }
 
+const CTX_LINE_WIDTH = 4;
+const CTX_LINE_COLOR = '#808080';
+
 @Component({
   selector: 'app-bingo-generator',
   standalone: true,
@@ -32,6 +35,7 @@ export class BingoGeneratorComponent {
   generatedCards: BingoCard[] = [];
   isGenerating: boolean = false;
   isExporting: boolean = false;
+  twoPerPageMode: boolean = false;
 
   onHeaderSelected(event: any): void {
     const file = event.target.files?.[0];
@@ -163,8 +167,20 @@ export class BingoGeneratorComponent {
     this.isExporting = true;
 
     try {
-      for (let i = 0; i < this.generatedCards.length; i++) {
-        await this.exportCardAsPNG(this.generatedCards[i], i + 1);
+      if (this.twoPerPageMode) {
+        for (let i = 0; i < this.generatedCards.length; i += 2) {
+          const card1 = this.generatedCards[i];
+          const card2 = this.generatedCards[i + 1] || null;
+          await this.exportTwoCardsOnOneLandscapePage(
+            card1,
+            card2,
+            Math.floor(i / 2) + 1
+          );
+        }
+      } else {
+        for (let i = 0; i < this.generatedCards.length; i++) {
+          await this.exportCardAsPNG(this.generatedCards[i], i + 1);
+        }
       }
       alert(`Successfully exported ${this.generatedCards.length} bingo cards!`);
     } catch (error) {
@@ -173,6 +189,148 @@ export class BingoGeneratorComponent {
     } finally {
       this.isExporting = false;
     }
+  }
+
+  private async exportTwoCardsOnOneLandscapePage(
+    card1: BingoCard,
+    card2: BingoCard | null,
+    pageNumber: number
+  ): Promise<void> {
+    return new Promise(async (resolve, reject) => {
+      const canvasWidth = 3300; // 11"
+      const canvasHeight = 2550; // 8.5"
+      const cardWidth = 1650;
+      const cardHeight = 2550;
+      const padding = 40;
+      const gap = 32;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject('Could not get canvas context');
+
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+      const drawCard = async (
+        card: BingoCard,
+        offsetX: number
+      ): Promise<void> => {
+        const availableHeight = cardHeight - 2 * padding;
+        const gridHeight = (availableHeight - gap) / 1.25;
+        const headerHeight = 0.25 * gridHeight;
+        const cellWidth = (cardWidth - 2 * padding) / 5;
+        const cellHeight = gridHeight / 5;
+
+        // Draw header image (object-fit: contain)
+        if (this.headerImage) {
+          const img = new Image();
+          img.src = this.headerImage.url;
+          await new Promise((res) => {
+            img.onload = () => {
+              const aspectRatio = img.width / img.height;
+              let drawWidth = headerHeight * aspectRatio;
+              let drawHeight = headerHeight;
+
+              if (drawWidth > cardWidth - 2 * padding) {
+                drawWidth = cardWidth - 2 * padding;
+                drawHeight = drawWidth / aspectRatio;
+              }
+
+              const x = offsetX + (cardWidth - drawWidth) / 2;
+              const y = padding;
+              ctx.drawImage(img, x, y, drawWidth, drawHeight);
+              res(null);
+            };
+            img.onerror = () => res(null);
+          });
+        }
+
+        const gridTop = padding + headerHeight + gap;
+
+        const promises: Promise<void>[] = [];
+        for (let row = 0; row < 5; row++) {
+          for (let col = 0; col < 5; col++) {
+            const x = offsetX + padding + col * cellWidth;
+            const y = gridTop + row * cellHeight;
+
+            // Border
+            ctx.strokeStyle = CTX_LINE_COLOR;
+            ctx.lineWidth = CTX_LINE_WIDTH;
+            ctx.strokeRect(x, y, cellWidth, cellHeight);
+
+            const imageData = card.grid[row][col];
+            if (imageData) {
+              const img = new Image();
+              img.src = imageData.url;
+
+              const p = new Promise<void>((res) => {
+                img.onload = () => {
+                  // OBJECT-FIT: CONTAIN logic
+                  const iw = img.width;
+                  const ih = img.height;
+                  const cellAR = cellWidth / cellHeight;
+                  const imgAR = iw / ih;
+
+                  let drawWidth = cellWidth - 10;
+                  let drawHeight = cellHeight - 10;
+                  let dx = x + 5;
+                  let dy = y + 5;
+
+                  if (imgAR > cellAR) {
+                    // constrain width
+                    drawWidth = cellWidth - 10;
+                    drawHeight = drawWidth / imgAR;
+                    dy = y + (cellHeight - drawHeight) / 2;
+                  } else {
+                    // constrain height
+                    drawHeight = cellHeight - 10;
+                    drawWidth = drawHeight * imgAR;
+                    dx = x + (cellWidth - drawWidth) / 2;
+                  }
+
+                  ctx.drawImage(img, dx, dy, drawWidth, drawHeight);
+                  res();
+                };
+                img.onerror = () => res();
+              });
+              promises.push(p);
+            } else {
+              ctx.fillStyle = '#f0f0f0';
+              ctx.fillRect(x + 5, y + 5, cellWidth - 10, cellHeight - 10);
+              ctx.fillStyle = '#333';
+              ctx.font = `${Math.min(cellWidth, cellHeight) * 0.2}px Arial`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText('FREE', x + cellWidth / 2, y + cellHeight / 2);
+            }
+          }
+        }
+
+        await Promise.all(promises);
+      };
+
+      await drawCard(card1, 0);
+      if (card2) {
+        await drawCard(card2, cardWidth);
+      }
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `bingo-cards-page-${pageNumber}.png`;
+          a.click();
+          URL.revokeObjectURL(url);
+          resolve();
+        } else {
+          reject('Failed to create PNG');
+        }
+      });
+    });
   }
 
   private async exportCardAsPNG(
@@ -279,8 +437,8 @@ export class BingoGeneratorComponent {
             padding + headerHeight + gapBetweenHeaderAndGrid + row * cellSize;
 
           // Cell border
-          ctx.strokeStyle = '#ccc';
-          ctx.lineWidth = 1;
+          ctx.strokeStyle = CTX_LINE_COLOR;
+          ctx.lineWidth = CTX_LINE_WIDTH;
           ctx.strokeRect(x, y, cellSize, cellSize);
 
           const imageData = card.grid[row][col];
