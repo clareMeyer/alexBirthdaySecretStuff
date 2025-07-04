@@ -54,7 +54,7 @@
                 }
               ],
               "outputHashing": "all",
-              "baseHref": "/bingoBuilder/"
+              "baseHref": "/alexBirthdaySecretStuff/"
             },
             "development": {
               "optimization": false,
