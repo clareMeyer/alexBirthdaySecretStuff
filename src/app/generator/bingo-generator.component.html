@@ -1,0 +1,114 @@
+<div class="generator-container">
+  <div class="controls-section">
+    <div class="upload-section">
+      <div class="upload-section">
+        <h2>Upload Header Image</h2>
+        <input
+          type="file"
+          accept="image/*"
+          (change)="onHeaderSelected($event)"
+          class="file-input"
+        />
+        <p class="info">
+          This image will be placed at the top of every exported bingo card.
+        </p>
+
+        <div *ngIf="headerImage" style="margin-top: 10px">
+          <img
+            [src]="headerImage.url"
+            alt="Header Preview"
+            style="max-width: 100%; max-height: 100px"
+          />
+        </div>
+      </div>
+
+      <h2>Upload Images</h2>
+      <input
+        type="file"
+        multiple
+        accept="image/*"
+        (change)="onFileSelected($event)"
+        class="file-input"
+      />
+      <p class="info">
+        Upload PNG images for your bingo cards. You need at least 24 images.
+      </p>
+    </div>
+
+    <div class="images-grid" *ngIf="images.length > 0">
+      <h3>Uploaded Images ({{ images.length }})</h3>
+      <div class="image-list">
+        <div *ngFor="let image of images" class="image-item">
+          <div class="checkbox-wrapper">
+            <input
+              type="radio"
+              name="freeSpace"
+              [value]="image.id"
+              [(ngModel)]="freeSpaceImageId"
+              class="free-checkbox"
+              [id]="'free-' + image.id"
+            />
+            <label [for]="'free-' + image.id" title="Set as Free Space"></label>
+            <label [for]="'free-' + image.id" title="Set as Free Space">
+              <span class="checkbox-label">Free Space</span>
+            </label>
+          </div>
+          <img [src]="image.url" [alt]="image.name" class="thumbnail" />
+          <div class="image-controls">
+            <button (click)="removeImage(image.id)" class="btn btn-remove">
+              Remove
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="generation-section" *ngIf="images.length >= 24">
+      <h3>Generate Cards</h3>
+      <div class="input-group">
+        <label for="cardCount">Number of unique cards:</label>
+        <input
+          type="number"
+          id="cardCount"
+          min="1"
+          max="50"
+          [(ngModel)]="numberOfCards"
+          class="number-input"
+        />
+      </div>
+      <button
+        (click)="generateCards()"
+        [disabled]="isGenerating"
+        class="btn btn-generate"
+      >
+        {{ isGenerating ? "Generating..." : "Generate Cards" }}
+      </button>
+    </div>
+
+    <div class="export-section" *ngIf="generatedCards.length > 0">
+      <h3>Export Cards</h3>
+      <p>{{ generatedCards.length }} cards ready for export</p>
+      <button
+        (click)="exportCards()"
+        [disabled]="isExporting"
+        class="btn btn-export"
+      >
+        {{ isExporting ? "Exporting..." : "Export All as PNG" }}
+      </button>
+    </div>
+  </div>
+
+  <div class="preview-section" *ngIf="generatedCards.length > 0">
+    <h3>Card Preview</h3>
+    <div class="cards-container">
+      <app-bingo-card
+        #cardContainers
+        *ngFor="let card of generatedCards; let i = index"
+        [card]="card"
+        [cardNumber]="i + 1"
+        [headerImageUrl]="headerImage?.url"
+      >
+      </app-bingo-card>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,37 @@
+<div class="bingo-card">
+  <h4>Card {{ cardNumber }}</h4>
+  <div class="card-content-container">
+    <img
+      *ngIf="headerImageUrl"
+      [src]="headerImageUrl"
+      alt="Header Image"
+      class="header-image"
+    />
+    <div class="bingo-grid">
+      <div
+        *ngFor="let row of card.grid; let rowIndex = index; let isLast = last"
+        class="bingo-row"
+        [class.last-row]="isLast"
+      >
+        <div
+          *ngFor="let cell of row; let colIndex = index"
+          class="bingo-cell"
+          [class.free-space]="rowIndex === 2 && colIndex === 2"
+        >
+          <img
+            *ngIf="cell"
+            [src]="cell.url"
+            [alt]="cell.name"
+            class="cell-image"
+          />
+          <div
+            *ngIf="!cell && rowIndex === 2 && colIndex === 2"
+            class="free-text"
+          >
+            FREE
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
